@@ -4,6 +4,10 @@ import android.annotation.SuppressLint
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -12,8 +16,17 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
@@ -21,8 +34,8 @@ import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -34,10 +47,14 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import app.marlboroadvance.mpvex.presentation.Screen
 import app.marlboroadvance.mpvex.ui.browser.folderlist.FolderListScreen
@@ -186,29 +203,29 @@ object MainScreen : Screen {
                 )
               )
           ) {
-            NavigationBarItem(
-              icon = { Icon(Icons.Filled.Home, contentDescription = "Home") },
-              label = { Text("Home") },
-              selected = selectedTab == 0,
-              onClick = { selectedTab = 0 }
+            AnimatedTabItem(
+                label = "Home",
+                icon = Icons.Filled.Home,
+                isSelected = selectedTab == 0,
+                onClick = { selectedTab = 0 }
             )
-            NavigationBarItem(
-              icon = { Icon(Icons.Filled.History, contentDescription = "Recents") },
-              label = { Text("Recents") },
-              selected = selectedTab == 1,
-              onClick = { selectedTab = 1 }
+            AnimatedTabItem(
+                label = "Recents",
+                icon = Icons.Filled.History,
+                isSelected = selectedTab == 1,
+                onClick = { selectedTab = 1 }
             )
-            NavigationBarItem(
-              icon = { Icon(Icons.AutoMirrored.Filled.PlaylistPlay, contentDescription = "Playlists") },
-              label = { Text("Playlists") },
-              selected = selectedTab == 2,
-              onClick = { selectedTab = 2 }
+            AnimatedTabItem(
+                label = "Playlists",
+                icon = Icons.AutoMirrored.Filled.PlaylistPlay,
+                isSelected = selectedTab == 2,
+                onClick = { selectedTab = 2 }
             )
-            NavigationBarItem(
-              icon = { Icon(Icons.Filled.Language, contentDescription = "Network") },
-              label = { Text("Network") },
-              selected = selectedTab == 3,
-              onClick = { selectedTab = 3 }
+            AnimatedTabItem(
+                label = "Network",
+                icon = Icons.Filled.Language,
+                isSelected = selectedTab == 3,
+                onClick = { selectedTab = 3 }
             )
           }
         }
@@ -297,3 +314,125 @@ object MainScreen : Screen {
 
 // CompositionLocal for navigation bar height
 val LocalNavigationBarHeight = compositionLocalOf { 0.dp }
+
+@Composable
+fun RowScope.AnimatedTabItem(
+    label: String,
+    icon: ImageVector,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    val density = LocalDensity.current
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+
+    // 1. Press Scale Animation: Shrinks to 85% when pressed
+    val pressScale by animateFloatAsState(
+        targetValue = if (isPressed) 0.85f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMedium,
+        ),
+        label = "pressScale",
+    )
+
+    // 2. Icon Scale Animation: Grows to 115% when selected
+    val iconScale by animateFloatAsState(
+        targetValue = if (isSelected) 1.15f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessLow,
+        ),
+        label = "iconScale",
+    )
+
+    // 3. Icon Offset Animation: Moves up slightly when selected
+    val iconOffsetY by animateDpAsState(
+        targetValue = if (isSelected) (-1).dp else 1.dp,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessLow,
+        ),
+        label = "iconOffsetY",
+    )
+
+    // 4. Label Alpha Animation: Fades in/out
+    val labelAlpha by animateFloatAsState(
+        targetValue = if (isSelected) 1f else 0f,
+        animationSpec = tween(
+            durationMillis = if (isSelected) 250 else 150,
+            easing = FastOutSlowInEasing,
+        ),
+        label = "labelAlpha",
+    )
+
+    // 5. Label Scale Animation: Scales up from 60% to 100%
+    val labelScale by animateFloatAsState(
+        targetValue = if (isSelected) 1f else 0.6f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessLow,
+        ),
+        label = "labelScale",
+    )
+
+    val iconTint = if (isSelected) {
+        MaterialTheme.colorScheme.onPrimaryContainer
+    } else {
+        MaterialTheme.colorScheme.onSurface.copy(alpha = .7f)
+    }
+
+    Box(
+        modifier = Modifier
+            .weight(1f) // Distributes tabs evenly across the NavigationBar
+            .clip(RoundedCornerShape(50)) // Prevents square clipping
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null, // Disables default Material ripple for custom feel
+            ) { onClick() }
+            .graphicsLayer {
+                scaleX = pressScale
+                scaleY = pressScale
+            }
+            .padding(vertical = 6.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(1.dp),
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = label,
+                modifier = Modifier
+                    .size(24.dp)
+                    .graphicsLayer {
+                        scaleX = iconScale
+                        scaleY = iconScale
+                        translationY = with(density) { iconOffsetY.toPx() }
+                    },
+                tint = iconTint,
+            )
+
+            Box(
+                modifier = Modifier
+                    .height(if (isSelected) 16.dp else 0.dp)
+                    .graphicsLayer {
+                        alpha = labelAlpha
+                        scaleX = labelScale
+                        scaleY = labelScale
+                    },
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                    ),
+                    color = iconTint,
+                    maxLines = 1,
+                )
+            }
+        }
+    }
+}
