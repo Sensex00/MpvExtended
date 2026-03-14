@@ -4,6 +4,9 @@ import android.annotation.SuppressLint
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -12,29 +15,219 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Language
-import androidx.compose.material3.Icon
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.compositionLocalOf
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.dp
+import app.marlboroadvance.mpvex.presentation.Screen
+import app.marlboroadvance.mpvex.ui.browser.folderlist.FolderListScreen
+import app.marlboroadvance.mpvex.ui.browser.networkstreaming.NetworkStreamingScreen
+import app.marlboroadvance.mpvex.ui.browser.playlist.PlaylistScreen
+import app.marlboroadvance.mpvex.ui.browser.recentlyplayed.RecentlyPlayedScreen
+import kotlinx.serialization.Serializable
+
+@Serializable
+object MainScreen : Screen {
+
+    private var persistentSelectedTab: Int = 0
+
+    @Composable
+    @SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
+    override fun Content() {
+
+        var selectedTab by remember {
+            mutableIntStateOf(persistentSelectedTab)
+        }
+
+        val density = LocalDensity.current
+
+        LaunchedEffect(selectedTab) {
+            persistentSelectedTab = selectedTab
+        }
+
+        Scaffold(
+            modifier = Modifier.fillMaxSize(),
+            bottomBar = {
+
+                AnimatedVisibility(
+                    visible = true,
+                    enter = slideInVertically(
+                        animationSpec = tween(300),
+                        initialOffsetY = { it }
+                    ),
+                    exit = slideOutVertically(
+                        animationSpec = tween(300),
+                        targetOffsetY = { it }
+                    )
+                ) {
+
+                    NavigationBar(
+                        modifier = Modifier.clip(
+                            RoundedCornerShape(
+                                topStart = 28.dp,
+                                topEnd = 28.dp
+                            )
+                        )
+                    ) {
+
+                        AnimatedNavItem(
+                            selected = selectedTab == 0,
+                            onClick = { selectedTab = 0 },
+                            icon = { Icon(Icons.Filled.Home, null) },
+                            label = { Text("Home") }
+                        )
+
+                        AnimatedNavItem(
+                            selected = selectedTab == 1,
+                            onClick = { selectedTab = 1 },
+                            icon = { Icon(Icons.Filled.History, null) },
+                            label = { Text("Recents") }
+                        )
+
+                        AnimatedNavItem(
+                            selected = selectedTab == 2,
+                            onClick = { selectedTab = 2 },
+                            icon = { Icon(Icons.AutoMirrored.Filled.PlaylistPlay, null) },
+                            label = { Text("Playlists") }
+                        )
+
+                        AnimatedNavItem(
+                            selected = selectedTab == 3,
+                            onClick = { selectedTab = 3 },
+                            icon = { Icon(Icons.Filled.Language, null) },
+                            label = { Text("Network") }
+                        )
+                    }
+                }
+            }
+        ) {
+
+            Box(Modifier.fillMaxSize()) {
+
+                AnimatedContent(
+                    targetState = selectedTab,
+                    transitionSpec = {
+
+                        val slideDistance = with(density) { 48.dp.roundToPx() }
+
+                        if (targetState > initialState) {
+
+                            (slideInHorizontally(
+                                animationSpec = tween(250, easing = FastOutSlowInEasing),
+                                initialOffsetX = { slideDistance }
+                            ) + fadeIn()) togetherWith
+
+                                    (slideOutHorizontally(
+                                        animationSpec = tween(250),
+                                        targetOffsetX = { -slideDistance }
+                                    ) + fadeOut())
+
+                        } else {
+
+                            (slideInHorizontally(
+                                animationSpec = tween(250),
+                                initialOffsetX = { -slideDistance }
+                            ) + fadeIn()) togetherWith
+
+                                    (slideOutHorizontally(
+                                        animationSpec = tween(250),
+                                        targetOffsetX = { slideDistance }
+                                    ) + fadeOut())
+                        }
+                    },
+                    label = "tab_animation"
+                ) { tab ->
+
+                    when (tab) {
+
+                        0 -> FolderListScreen.Content()
+                        1 -> RecentlyPlayedScreen.Content()
+                        2 -> PlaylistScreen.Content()
+                        3 -> NetworkStreamingScreen.Content()
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun RowScope.AnimatedNavItem(
+    selected: Boolean,
+    onClick: () -> Unit,
+    icon: @Composable () -> Unit,
+    label: @Composable () -> Unit
+) {
+
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+
+    val pressScale by animateFloatAsState(
+        targetValue = if (isPressed) 0.85f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMedium
+        ),
+        label = "pressScale"
+    )
+
+    val iconScale by animateFloatAsState(
+        targetValue = if (selected) 1.15f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessLow
+        ),
+        label = "iconScale"
+    )
+
+    val labelAlpha by animateFloatAsState(
+        targetValue = if (selected) 1f else 0f,
+        animationSpec = tween(
+            durationMillis = if (selected) 250 else 150,
+            easing = FastOutSlowInEasing
+        ),
+        label = "labelAlpha"
+    )
+
+    NavigationBarItem(
+        selected = selected,
+        onClick = onClick,
+        interactionSource = interactionSource,
+        icon = {
+
+            Box(
+                Modifier.graphicsLayer {
+                    scaleX = pressScale * iconScale
+                    scaleY = pressScale * iconScale
+                }
+            ) {
+                icon()
+            }
+        },
+        label = {
+
+            Box(
+                Modifier.graphicsLayer {
+                    alpha = labelAlpha
+                }
+            ) {
+                label()
+            }
+        }
+    )
+}import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
